@@ -1,1 +1,1 @@
-We will release the code after the code and data are organized
+We will release the code after it is organized
