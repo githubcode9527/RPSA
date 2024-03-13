@@ -261,11 +261,5 @@ class QueryEncoder(nn.Module):
 
 
 
-if __name__ == '__main__':
-    # test code for modules
-    support_encoder = ContextAwareEncoder(2, 100, 200, 4, 25, 25)
-    support = Variable(torch.randn(128, 200,100))
-    # support = support.unsqueeze(0)
-    print(support_encoder(support).size())
 
 
