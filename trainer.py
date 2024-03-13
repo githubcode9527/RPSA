@@ -57,20 +57,9 @@ class Trainer(object):
         self.parameters = filter(lambda p: p.requires_grad, self.matcher.parameters())
         self.optim = optim.Adam(self.parameters, lr=self.lr, weight_decay=self.weight_decay)
 
-        #self.scheduler = optim.lr_scheduler.MultiStepLR(self.optim, milestones=[50000,100000], gamma=0.5)
-
-        #self.ent2id = json.load(open(self.dataset + '/ent2ids'))
-        #self.num_ents = len(self.ent2id.keys())
-
         logging.info('BUILDING CONNECTION MATRIX')
         degrees = self.build_connection(max_=self.max_neighbor)
-        '''
-        degree0 = open('degree0','w')
-        for key,value in degrees.items():
-            if value == 0 :
-                degree0.write(key+'----'+str(0)+'\n')
-
-        '''
+        
         logging.info('LOADING CANDIDATES ENTITIES')
         self.rel2candidates = json.load(open(self.dataset + '/rel2candidates.json'))
 
@@ -87,26 +76,6 @@ class Trainer(object):
         self.ent2id['PAD'] = self.num_ents
         self.rel_embed = None
         self.ent_embed = None
-        '''
-        symbol_id = {}
-        rel2id = json.load(open(self.dataset + '/relation2ids'))
-        ent2id = json.load(open(self.dataset + '/ent2ids'))
-        # 修改1
-        i = 0
-        for key in rel2id.keys():
-            if key not in ['','OOV']:
-                symbol_id[key] = i
-                i += 1
-
-        for key in ent2id.keys():
-            if key not in ['', 'OOV']:
-                symbol_id[key] = i
-                i += 1
-
-        symbol_id['PAD'] = i
-        self.symbol2id = symbol_id
-        self.symbol2vec = None
-        '''
 
     def load_embed(self):
         self.rel2id = json.load(open(self.dataset + '/relation2ids'))
@@ -146,29 +115,8 @@ class Trainer(object):
 
             self.rel_embed = rel_embed
             self.ent_embed = ent_embed
-            '''
-            i = 0
-            embeddings = []
-            for key in rel2id.keys():
-                if key not in ['','OOV']:
-                    symbol_id[key] = i
-                    i += 1
-                    embeddings.append(list(rel_embed[rel2id[key],:]))
-
-            for key in ent2id.keys():
-                if key not in ['', 'OOV']:
-                    symbol_id[key] = i
-                    i += 1
-                    embeddings.append(list(ent_embed[ent2id[key],:]))
-
-            symbol_id['PAD'] = i
-            embeddings.append(list(np.zeros((rel_embed.shape[1],))))
-            embeddings = np.array(embeddings)
-            assert embeddings.shape[0] == len(symbol_id.keys())
-            # 
-            self.symbol2id = symbol_id
-            self.symbol2vec = embeddings
-            '''
+         
+            
     def build_connection(self, max_=100):
 
         self.connections = (np.ones((self.num_ents, max_, 2))).astype(int)
@@ -180,7 +128,7 @@ class Trainer(object):
             lines = f.readlines()
             for line in tqdm(lines):
                 e1, rel, e2 = line.rstrip().split()
-                self.e1_rele2[e1].append((self.rel2id[rel], self.ent2id[e2]))   # 实体e1的邻居关系id和邻居id（元祖）
+                self.e1_rele2[e1].append((self.rel2id[rel], self.ent2id[e2]))   
                 self.e1_rele2[e2].append((self.rel2id[rel+'_inv'], self.ent2id[e1]))
 
         degrees = {}
@@ -188,12 +136,12 @@ class Trainer(object):
             neighbors = self.e1_rele2[ent]
             if len(neighbors) > max_:
                 neighbors = neighbors[:max_]
-            # degrees.append(len(neighbors)) 
-            degrees[ent] = len(neighbors)  # 超过最大邻居数的默认最大邻居数为度数
+           
+            degrees[ent] = len(neighbors)   
             self.e1_degrees[id_] = len(neighbors)    # add one for self conn
             for idx, _ in enumerate(neighbors):
                 self.connections[id_, idx, 0] = _[0]
-                self.connections[id_, idx, 1] = _[1]  # connections是一个三维的矩阵：[头实体id,第几个邻居,0=关系]，[头实体id,第几个邻居,1=尾实体]  可以unsqueezed(-1)去掉第几点邻居的序号
+                self.connections[id_, idx, 1] = _[1]   
         return degrees
 
     def save(self, path=None):
@@ -223,10 +171,8 @@ class Trainer(object):
         losses = deque([], self.log_every)
 
         for data in train_generate(self.dataset, self.batch_size, self.few, self.ent2id, self.e1rel_e2):
-            # 解释：support是支持集[头实体id，尾实体id]        support_left/right是关于某一关系r支持集的头实体id集合和尾实体id集合
-            support, query, false, support_left, support_right, query_left, query_right, false_left, false_right = data
-            # TODO more elegant solution
-            # get_meta获取头实体和尾实体的邻居
+             support, query, false, support_left, support_right, query_left, query_right, false_left, false_right = data
+             
             support_meta = self.get_meta(support_left, support_right)
             query_meta = self.get_meta(query_left, query_right)
             false_meta = self.get_meta(false_left, false_right)
@@ -250,9 +196,8 @@ class Trainer(object):
                 lr = self.optim.param_groups[0]['lr']
                 print('Epoch: {0}, Avg_batch_loss: {1:.6f}, lr:{2:.6f} '.format(self.epoch_num,np.mean(losses),lr))
 
-                # self.save()
-                # logging.info('AVG. BATCH_LOSS: {.2f} AT STEP {}'.format(np.mean(losses), self.batch_nums))
-                self.writer.add_scalar('Avg_batch_loss', np.mean(losses), self.epoch_num)    # 训练的平均损失
+                 
+                self.writer.add_scalar('Avg_batch_loss', np.mean(losses), self.epoch_num)   
 
             if (self.epoch_num % self.eval_every == 0 and self.epoch_num != 0) or self.epoch_num == self.max_epoch:
 
@@ -286,14 +231,7 @@ class Trainer(object):
                 self.load(self.save_path + '_best')
                 self.eval(meta=self.meta, mode='test')
                 break
-            '''
-            if bad_counts >= self.early_stopping_patience:
-                logging.info('Early stopping!')
-                logging.critical('Early stopping at epoch %d'.format(self.epoch_num))
-                self.load(self.save_path + '_best')
-                self.eval(meta=self.meta, mode='test')
-                break
-            '''
+             
 
 
     def eval(self, mode='dev', meta=False):
@@ -386,11 +324,7 @@ class Trainer(object):
 
             logging.critical('{} Hits10:{:.3f}, Hits5:{:.3f}, Hits1:{:.3f} MRR:{:.3f}'.format(query_, np.mean(hits10_), np.mean(hits5_), np.mean(hits1_), np.mean(mrr_)))
             logging.info('Number of candidates: {}, number of text examples {}'.format(len(candidates), len(hits10_)))
-            # print query_ + ':'
-            # print 'HITS10: ', np.mean(hits10_)
-            # print 'HITS5: ', np.mean(hits5_)
-            # print 'HITS1: ', np.mean(hits1_)
-            # print 'MRR: ', np.mean(mrr_)
+          
 
         logging.critical('HITS10: {:.3f}'.format(np.mean(hits10)))
         logging.critical('HITS5: {:.3f}'.format(np.mean(hits5)))
