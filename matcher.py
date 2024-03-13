@@ -24,7 +24,6 @@ class EmbedMatcher(nn.Module):
         self.gcn_w2 = nn.Linear(2*self.embed_dim, self.embed_dim)
         self.gcn_q = nn.Linear(self.embed_dim, 1)
 
-        # aotoencoder 自动编码器 配置参数
         self.set_LSTM_encoder = nn.LSTM(2 * self.embed_dim, 2 * self.embed_dim, 1, bidirectional=False)   
         self.set_LSTM_decoder = nn.LSTM(2 * self.embed_dim, 2 * self.embed_dim, 1, bidirectional=False)
 
@@ -73,18 +72,15 @@ class EmbedMatcher(nn.Module):
         
         weight_hr = F.softmax(self.leak(self.gcn_p(a_hr).squeeze(-1)), dim=-1)
 
-        # 拼接计算第二层注意力：实体层注意力->拼接a_hr和尾实体
         concat_embeds1 = torch.cat((a_hr, ent_embeds),dim=-1)
         b_hrt = self.gcn_w2(concat_embeds1)
         weight_hrt = F.softmax(self.leak(self.gcn_q(b_hrt).squeeze(-1)),dim=-1)
 
-        # 第三层注意力：三元组注意力
         triple_weight = weight_hr * weight_hrt                                        
         triple_weight = triple_weight.unsqueeze(2)
 
         head_aggregate = torch.sum(triple_weight * b_hrt, dim=1)
 
-        # 残差再次聚合
         head_aggregate_add = head_aggregate + self.ent_emb(head_id).squeeze(1)
         head_aggregate_mul = self.ent_emb(head_id).squeeze(1) * head_aggregate
 
@@ -113,9 +109,6 @@ class EmbedMatcher(nn.Module):
         support_g = self.support_encoder(support_neighbor)
         query_g = self.support_encoder(query_neighbor)
 
-        
-
-        # LSTM autoencoder
         support_g_0 = support_g.view(few, 1, 2 * self.embed_dim)   
         support_g_encoder, support_g_state = self.set_LSTM_encoder(support_g_0)
         if not iseval:
